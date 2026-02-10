@@ -98,6 +98,9 @@ export function AuthProvider({children}:{children:ReactNode})
             setError(error?.message || 'Invalid credentials')
             throw error;   
         }
+        finally{
+            setIsLoading(false)
+        }
 
     },[router])
     
@@ -133,7 +136,9 @@ export function AuthProvider({children}:{children:ReactNode})
         clearError
     }
 
-    return <AuthContext.Provider value={value}></AuthContext.Provider>
+    return (<AuthContext.Provider value={value}>
+        {children}
+    </AuthContext.Provider>)
 
 }
 

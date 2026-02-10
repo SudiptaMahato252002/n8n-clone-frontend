@@ -25,3 +25,21 @@ export interface AuthResponse{
     expiresIn: number,
     user: User
 }
+
+
+export interface CreateCredentilasRequest
+{
+    title: string,
+    platform: 'RESEND_EMAIL'|'GEMINI'|'TELEGRAM'
+    credentials: Record<string,any>
+}
+
+export interface CredentialsResponse
+{
+    id: string,
+    userId: string,
+    title: string,
+    platform: string,
+    createdAt: string,
+    updatedAt: string
+}
