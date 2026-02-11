@@ -4,6 +4,10 @@ import React, { useCallback, useState } from 'react'
 import { NodeToolbar,ReactFlow, Background, Controls,Node ,Edge, NodeChange, applyNodeChanges, OnNodesChange, EdgeChange, applyEdgeChanges,OnEdgesChange, Connection, addEdge, NodeTypes} from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import WorkflowNode from '@/components/custom/WorkflowNode';
+import WebhookModal, { WebhookDataProps } from '@/components/custom/WebhookModal';
+import { generateWebhookId, generateWebhookSecret } from '@/lib/WebhookUtils';
+import { useAuth } from '@/contexts/AuthContext';
+import ResendEmailModal from '@/components/custom/ResendEmailModal';
 
 
 const nodeTypes:NodeTypes={
@@ -11,10 +15,70 @@ const nodeTypes:NodeTypes={
 }
 
 const WorkflowCreateForm = () => {
+
+  const {user}=useAuth()
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [nodeCounter, setNodeCounter] = useState(0)
   const [showSidebar, setShowSidebar] = useState(false)
+  const [showWebhookModal,setShowWebhookModal]=useState(false)
+  const [showResendEmailModal,setShowResendEmailModal]=useState(false)
+  const [webhookData,setWebhookData]=useState<any>(null)
+  const [isGenerating,setIsGenerating]=useState(false)
+
+  const generateWebhookConfig=async()=>{
+    setIsGenerating(true)
+    try 
+    {
+      
+      if(!user)
+      {
+        alert('Please login first')
+        return
+      }
+      const webhookId= await generateWebhookId(user.id)
+      const webhookSecret= generateWebhookSecret()
+      
+      const config={
+        id: webhookId,
+        title: 'Webhook Trigger',
+        secret: webhookSecret,
+        method: 'PUT' as const
+      }
+
+      const webhookInfo:WebhookDataProps={
+        id:webhookId as string,
+        secret: config.secret,
+        title: config.title,
+        method:config.method,
+        url: `${window.location.origin}/webhooks/${webhookId}`
+      }
+
+      setWebhookData(webhookInfo)
+      setShowWebhookModal(true)
+      setShowSidebar(false)
+      console.log('Webhook config generated (not saved yet):', config)
+
+    } 
+    catch (error) 
+    {
+      console.error('Error generating webhook config:', error)
+      alert('Failed to generate webhook configuration. Please try again.')      
+    }
+    finally
+    {
+      setIsGenerating(false)
+
+    }
+
+   
+
+  }
+
+
+  const configuringResendEmail=()=>{
+    setShowResendEmailModal(true)
+  }
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes: NodeChange[]) =>
@@ -99,7 +163,6 @@ const WorkflowCreateForm = () => {
         </div>
       )}
 
-      {/* Sidebar */}
       {showSidebar && (
         <div
           style={{
@@ -127,16 +190,28 @@ const WorkflowCreateForm = () => {
           </Button>
 
           <Button
-            style={{ display: 'block', width: '100%' }}
+            style={{ display: 'block', width: '100%' ,marginBottom:'8px'}}
+            disabled={isGenerating}
             onClick={() => {
+              generateWebhookConfig()
+              // setShowWebhookModal(true)
               addNode('Webhook Trigger')
               setShowSidebar(false)
             }}
           >
-            Trigger with webhook
+            {isGenerating?'Generating...':'Trigger with webhook'}
+            
+          </Button>
+
+          <Button style={{display:'block',width:'100%',marginBottom:'8px'}} onClick={configuringResendEmail}>
+              Resend Email
           </Button>
         </div>
       )}
+
+      <WebhookModal isOpen={showWebhookModal} onClose={()=>{setShowWebhookModal(false)}} webhookData={webhookData}></WebhookModal>
+      <ResendEmailModal isOpen={showResendEmailModal} onClose={()=>setShowResendEmailModal(false)}></ResendEmailModal>
+
 
       <ReactFlow
         colorMode="dark"

@@ -8,7 +8,8 @@ export interface CreateWorkflowRequest
     triggerType: 'WEBHOOK' | 'MANUAL' | 'SCHEDULE' | 'SUB_WORKFLOW'
     nodes: Record<string, any>
     connections: Record<string, string[]>
-    webhook: {
+    webhook?: {
+        id: string
         title: string
         method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
         secret: string
