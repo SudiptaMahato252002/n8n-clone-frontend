@@ -30,7 +30,7 @@ export interface AuthResponse{
 export interface CreateCredentilasRequest
 {
     title: string,
-    platform: 'RESEND_EMAIL'|'GEMINI'|'TELEGRAM'
+    platform: 'RESEND_EMAIL'|'GEMINI'|'TELEGRAM'|'GROQ_AI'
     credentials: Record<string,any>
 }
 
@@ -42,4 +42,22 @@ export interface CredentialsResponse
     platform: string,
     createdAt: string,
     updatedAt: string
+}
+export enum Platform
+{
+    WEBHOOK='WEBHOOK',
+    GROQ_AI='GROQ_AI',
+    RESEND_EMAIL='RESEND_EMAIL'
+
+}
+export type WorkflowNodePayload={
+  id: string,
+  label: string,
+  credentialsId?:string,
+  type:Platform,
+  position:{
+    x:number,
+    y:number
+  },
+  config:any
 }

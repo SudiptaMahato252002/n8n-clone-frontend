@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { ReactNode, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 export type FormFieldProps={
@@ -10,11 +10,12 @@ export type FormFieldProps={
     rows?:number
     showCopy?:boolean
     color?:string
+    children?:ReactNode
 }
 
 
 
-const FormField = ({label,value,onChange,editable=false,multiline=false,rows=4,showCopy=false,color='#fff'}:FormFieldProps) => {
+const FormField = ({label,value,onChange,editable=false,multiline=false,rows=4,showCopy=false,color='#fff',children}:FormFieldProps) => {
     const [copied,setCopied]=useState(false)
     const copyToClipBoard=()=>{
         navigator.clipboard.writeText(value)
@@ -75,7 +76,7 @@ const FormField = ({label,value,onChange,editable=false,multiline=false,rows=4,s
             }}>{value}</div>
           )}
           
-          
+          {children}
           
           {showCopy&& !editable &&(
             <Button  style={{ fontSize: '12px', padding: '4px 12px' }} onClick={copyToClipBoard}>

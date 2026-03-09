@@ -1,6 +1,6 @@
 import { btoa } from "buffer"
 
-export const generateWebhookId=async(userId: string):Promise<String>=>{
+export const generateWebhookId=async(userId: string):Promise<string>=>{
     const timestamp=Date.now().toString()
     const randomUUID=crypto.randomUUID()
     const randomValue=Math.random().toString(36).substring(2,15)

@@ -16,20 +16,34 @@ export interface CreateWorkflowRequest
     }
 }
 
+export interface UpdateWorkflowRequest
+{
+    title: string
+    triggerType: 'WEBHOOK' | 'MANUAL' | 'SCHEDULE' | 'SUB_WORKFLOW'
+    nodes: Record<string,any>
+    connections: Record<string,any>
+    webhook?:{
+        id: string
+        title: string
+        method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+        secret: string
+    }
+  }
+
 export interface WorkflowResponse 
 {
   id: string
   userId: string
   title: string
   enabled: boolean
-  triggerType: string
+  triggerType: 'MANUAL'|'WEBHOOK'|'SCHEDULE'
   nodes: Record<string, any>
   connections: Record<string, string[]>
   webhookId: string
   webhook: {
     id: string
     title: string
-    method: string
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
     secret: string
     createdAt: string
   }
@@ -45,7 +59,13 @@ export interface TriggerWorkflowRequest {
 
 export const workflowApi = {
   create: async (userId: string, data: CreateWorkflowRequest): Promise<WorkflowResponse> => {
+    console.log(JSON.stringify(data))
     const response = await api.post<WorkflowResponse>(`${BASE_PATH}/${userId}`, data)
+    return response.data
+  },
+
+  update:async(userId:string,data:UpdateWorkflowRequest,id:string)=>{
+    const response=await api.put<WorkflowResponse>(`${BASE_PATH}/${id}/${userId}`)
     return response.data
   },
 

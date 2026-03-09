@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button'
 import React, { useState } from 'react'
 import FormField from './FormField'
+import Modal from './Modal'
 
 export type WebhookDataProps={
     id: string,
@@ -15,10 +16,11 @@ type WebhookModalProps={
     isOpen: boolean,
     onClose:()=>void,
     webhookData:WebhookDataProps|null
+    onSave:(config:WebhookDataProps)=>void
 
 }
 
-const WebhookModal = ({isOpen,onClose,webhookData}:WebhookModalProps) => {
+const WebhookModal = ({isOpen,onClose,webhookData,onSave}:WebhookModalProps) => {
     const [copiedField,setCopiedField]=useState<'url'|'secret'|null>(null)
 
     const copyToClipboard=(text:string,field:'url'|'secret'|null)=>{
@@ -31,30 +33,22 @@ const WebhookModal = ({isOpen,onClose,webhookData}:WebhookModalProps) => {
     }
   if (!isOpen || !webhookData) return null
 
+  const handleOnSave=()=>{
+    const config:WebhookDataProps={
+      id:webhookData.id,
+      secret:webhookData.secret,
+      title:webhookData.title,
+      method:webhookData.method,
+      url:webhookData.url
+    }
+
+    onSave(config)
+    onClose()
+  }
+
   
     return (
-    <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}>
-        <div style={{
-          background: '#1a1a1a',
-          borderRadius: '8px',
-          padding: '24px',
-          width: '90%',
-          maxWidth: '600px',
-          maxHeight: '80vh',
-          overflow: 'auto',
-          border: '1px solid #333',
-        }}>
+    <Modal>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#fff' }}>Webhook Cretad</h2>
                 <button style={{
@@ -138,9 +132,12 @@ const WebhookModal = ({isOpen,onClose,webhookData}:WebhookModalProps) => {
         <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
           <Button onClick={onClose}>Close</Button>
         </div>
-
-    </div>
-    </div>
+        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap:'10px' }}>
+                                        <Button onClick={()=>{
+                                            handleOnSave()
+                                        }}>Save</Button>
+                        </div>
+    </Modal>
   )
 }
 
