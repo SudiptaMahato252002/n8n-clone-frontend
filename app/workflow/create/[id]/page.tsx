@@ -1,6 +1,6 @@
 'use client'
 import { Button } from '@/components/ui/button'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { use, useCallback, useEffect, useState } from 'react'
 import { ReactFlow, Background, Controls,Node ,Edge, NodeChange, applyNodeChanges, OnNodesChange, EdgeChange, applyEdgeChanges,OnEdgesChange, Connection, addEdge, NodeTypes} from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import WorkflowNode from '@/components/custom/WorkflowNode';
@@ -36,11 +36,14 @@ const WorkflowCreateForm = () => {
   const [nodes, setNodes] = useState<Node<WorkflowNodeData>[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [nodeCounter, setNodeCounter] = useState(0)
+  const [isSaving,setIsSaving]=useState<boolean>(false)
+  const [saveStatus,setSaveStatus]=useState<'idle'|'saved'|'error'>('idle')
   
   const [showSidebar, setShowSidebar] = useState(false)
   const [showWebhookModal,setShowWebhookModal]=useState(false)
   const [showResendEmailModal,setShowResendEmailModal]=useState(false)
   const [showGroqAIModal,setShowGroqAIModal]=useState(false)
+  const [editingNodeId,setEditingNodeId]=useState<string|undefined>(undefined)
   
   const [webhookData,setWebhookData]=useState<any>(null)
   const [isGenerating,setIsGenerating]=useState(false)
@@ -48,8 +51,6 @@ const WorkflowCreateForm = () => {
   const [workflowData,setWorkflowData]=useState({
     title:'',
     triggerType:'MANUAL' as 'WEBHOOK'|'MANUAL'|'SCHEDULE',
-    // nodes:{},
-    // connections:{},
     webhook:undefined as undefined|{
         id: string,
         title: string,
@@ -58,6 +59,11 @@ const WorkflowCreateForm = () => {
         createdAt?: string
       }
   })
+
+   const onDelete=useCallback((id:string)=>{
+    setNodes((nds)=>nds.filter((n)=>n.id!==id))
+    setEdges((eds)=>eds.filter((e)=>e.source!==id && e.target!==id))
+  },[])
 
   useEffect(()=>{
     if(!workflowId||!user)
@@ -90,7 +96,14 @@ const WorkflowCreateForm = () => {
 
         setNodes(loadedNodes)
 
-         const loadedEdges: Edge[] = []
+        const maxExisting=loadedNodes.reduce((max,n)=>{
+          const num=parseInt(n.id.replace('n',''),10)
+          return isNaN(num)?max:Math.max(max,num+1)
+        },0)
+
+        setNodeCounter(maxExisting)
+
+        const loadedEdges: Edge[] = []
 
       Object.entries(workflow.connections || {}).forEach(
         ([source, targets]: any) => {
@@ -110,14 +123,14 @@ const WorkflowCreateForm = () => {
       }
     }
     loadWorkflow()
-  },[workflowId,user])
+  },[workflowId,user,onDelete])
 
   const addNodeNew=(type:Platform,label:string,subtitle:string,config:any)=>{
     const id=`n${nodeCounter}`
     const newNode:Node<WorkflowNodeData>={
       id,
       position:{ x: 250 + nodes.length * 40,
-  y: 200 + nodes.length * 40},
+      y: 200 + nodes.length * 40},
       type:'workflow',
       data:{
         label,
@@ -188,11 +201,75 @@ const WorkflowCreateForm = () => {
 
   }
 
+  const getUpstreamNodeIds=(nodeId:string):string[]=>{
+    const ids=edges.filter((edge)=>edge.target===nodeId)
+    .map((edge)=>edge.source)
+    return [...new Set(ids)]
+  }
+
+
+  const buildAvailableVars=(forNodeId?:string):string[]=>{
+    const vars:string[]=[] 
+    if(workflowData.triggerType==='WEBHOOK')
+    {
+      vars.push('$json.body')
+    }
+    if(!forNodeId)return vars
+    const currentIndex=nodes.findIndex(n=>n.id===forNodeId)
+    const previousNodes=currentIndex===-1?nodes:nodes.slice(0,currentIndex)
+    previousNodes.forEach((node)=>{
+      const id=node.id
+      if(node.data.type===Platform.GROQ_AI)
+          {
+              vars.push(`$node.${id}.response`)
+              vars.push(`$node.${id}.model`)
+              vars.push(`$node.${id}.totalTokenUsage`)
+          }
+          if(node.data.type===Platform.RESEND_EMAIL)
+          {
+            vars.push(`$node.${id}.status`)
+            vars.push(`$node.${id}.messageId`)
+          }
+          if(node.data.type===Platform.WEBHOOK)
+          {
+            vars.push(`$json.body`)
+          }
+    })
+    // if(forNodeId)
+    // {
+    //     const updstreamIds:string[]=getUpstreamNodeIds(forNodeId)
+    //     updstreamIds.forEach((upstreamId)=>{
+    //       const upstreamNode=nodes.find((node)=>node.id==upstreamId)
+    //       if(!upstreamNode)return
+
+    //       if(upstreamNode.data.type===Platform.GROQ_AI)
+    //       {
+    //           vars.push(`$node.${upstreamId}.response`)
+    //           vars.push(`$node.${upstreamId}.model`)
+    //           vars.push(`$node.${upstreamId}.totalTokenUsage`)
+    //       }
+    //       if(upstreamNode.data.type===Platform.RESEND_EMAIL)
+    //       {
+    //         vars.push(`$node.${upstreamId}.status`)
+    //         vars.push(`$node.${upstreamId}.messageId`)
+    //       }
+    //       if(upstreamNode.data.type===Platform.WEBHOOK)
+    //       {
+    //         vars.push(`$json.body`)
+    //       }
+    //     })
+    // } 
+     return [...new Set(vars)]
+  }
+
+
   const buildWokkflowPayload=()=>{
     const workflowNodes:Record<string,WorkflowNodePayload>={}
     const connections:Record<string,string[]>={}
     nodes.forEach((node)=>{
-      workflowNodes[node.id]={
+      if(node.data.type!=Platform.WEBHOOK)
+      {
+        workflowNodes[node.id]={
         id:node.id,
         label:node.data.label,
         type: node.data.type,
@@ -202,6 +279,7 @@ const WorkflowCreateForm = () => {
           y:node.position.y
         },
         config: node.data.config
+      }
       }
     })
     
@@ -223,14 +301,6 @@ const WorkflowCreateForm = () => {
 
   }
 
-  const configuringResendEmail=()=>{
-    setShowResendEmailModal(true)
-  }
-
-  const configurinGroqAI=()=>{
-    setShowGroqAIModal(true)
-  }
-
   const onNodesChange: OnNodesChange = useCallback(
     (changes: NodeChange[]) =>
       setNodes((nds) => applyNodeChanges(changes, nds) as Node<WorkflowNodeData>[]),
@@ -249,10 +319,43 @@ const WorkflowCreateForm = () => {
     []
   )
 
-  const onDelete=useCallback((id:string)=>{
-    setNodes((nds)=>nds.filter((n)=>n.id!==id))
-    setEdges((eds)=>eds.filter((e)=>e.source!==id && e.target!==id))
-  },[])
+  const handleSave=()=>{
+    if (!user) return
+
+    setIsSaving(true)
+    setSaveStatus('idle')
+
+    try {
+      const payload = buildWokkflowPayload()
+      console.log(JSON.stringify(payload),null,2)
+      // await workflowApi.update(user.id, payload, workflowId)
+
+      setSaveStatus('saved')
+
+      setTimeout(() => setSaveStatus('idle'), 2000)
+
+    } catch (error) {
+
+      console.error('Failed to save workflow', error)
+
+      setSaveStatus('error')
+
+      setTimeout(() => setSaveStatus('idle'), 3000)
+
+    } finally {
+
+      setIsSaving(false)
+
+    }
+  }
+   const saveLabel =
+      isSaving
+        ? 'Saving…'
+        : saveStatus === 'saved'
+        ? '✓ Saved'
+        : saveStatus === 'error'
+        ? '✗ Error'
+        : 'Save Workflow'
 
   
   return (
@@ -277,16 +380,18 @@ const WorkflowCreateForm = () => {
           position: "absolute",
           top: 10,
           right: 20,
-          zIndex: 10
+          zIndex: 10,
+          background:
+            saveStatus === 'saved'
+              ? '#16a34a'
+              : saveStatus === 'error'
+              ? '#dc2626'
+              : undefined
         }}
-        onClick={async() => {
-          const payload=buildWokkflowPayload()
-          if(!user)
-            return
-          //await workflowApi.update(user?.id,payload,workflowId)
-          console.log("Workflow JSON:", JSON.stringify(payload,null,2))
-        }}>
-        Save Workflow
+        onClick={handleSave}
+        disabled={isSaving}
+      >
+        {saveLabel}
       </Button>
 
       {/* Center add-first-step button */}
@@ -337,17 +442,6 @@ const WorkflowCreateForm = () => {
           }}
         >
           <h4 style={{ marginBottom: '12px' }}>Choose trigger</h4>
-
-          {/* <Button
-            style={{ display: 'block', width: '100%', marginBottom: '8px' }}
-            onClick={() => {
-              addNodeNew('Manual Trigger')
-              setShowSidebar(false)
-            }}
-          >
-            Trigger manually
-          </Button> */}
-
           <Button
             style={{ display: 'block', width: '100%' ,marginBottom:'8px'}}
             disabled={isGenerating}
@@ -361,10 +455,20 @@ const WorkflowCreateForm = () => {
             
           </Button>
 
-          <Button style={{display:'block',width:'100%',marginBottom:'8px'}} onClick={configuringResendEmail}>
+          <Button style={{display:'block',width:'100%',marginBottom:'8px'}} onClick={()=>{
+            const tempId = `n${nodeCounter}`
+            setEditingNodeId(tempId)
+            setShowResendEmailModal(true)
+            setShowSidebar(false)
+          }}>
               Resend Email
           </Button>
-          <Button style={{display:'block',width:'100%',marginBottom:'8px'}} onClick={configurinGroqAI}>
+          <Button style={{display:'block',width:'100%',marginBottom:'8px'}} onClick={()=>{
+            const tempId = `n${nodeCounter}`
+            setEditingNodeId(tempId)
+            setShowGroqAIModal(true)
+            setShowSidebar(false)
+          }}>
               Groq AI
           </Button>
           <Button style={{display:'block',width:'100%',marginBottom:'8px'}} onClick={()=>setShowSidebar(false)}></Button>
@@ -372,8 +476,35 @@ const WorkflowCreateForm = () => {
       )}
 
       <WebhookModal isOpen={showWebhookModal} onClose={()=>{setShowWebhookModal(false)}} webhookData={webhookData} onSave={(config)=>{addNodeNew(Platform.WEBHOOK,'Webhook Trigger','Incoming webhook',config)}}></WebhookModal>
-      <ResendEmailModal isOpen={showResendEmailModal} onClose={()=>setShowResendEmailModal(false)} onSave={(config)=>addNodeNew(Platform.RESEND_EMAIL,'Resend-Email','Email sending',config)}></ResendEmailModal>
-      <GroqAIModal isOpen={showGroqAIModal} onClose={()=>setShowGroqAIModal(false)} onSave={(config)=>addNodeNew(Platform.GROQ_AI,'Groq-AI','LLM Interefernce',config)}></GroqAIModal>
+      <ResendEmailModal availableVars={buildAvailableVars(editingNodeId)}isOpen={showResendEmailModal} 
+      onClose={()=>{
+        setShowResendEmailModal(false)
+        setEditingNodeId(undefined)
+        }} 
+      onSave={(config)=>{
+          addNodeNew(
+            Platform.RESEND_EMAIL,
+            'Resend-Email',
+            'Email sending',
+            config)
+          setShowResendEmailModal(false)
+          setEditingNodeId(undefined)
+        }}></ResendEmailModal>
+      <GroqAIModal availableVars={buildAvailableVars(editingNodeId)}isOpen={showGroqAIModal} 
+      onClose={()=>{
+        setShowResendEmailModal(false)
+        setEditingNodeId(undefined)
+      }} 
+      onSave={(config)=>{
+         addNodeNew(
+            Platform.GROQ_AI,
+            'Groq-AI',
+            'LLM Inference',
+            config
+          )
+          setShowGroqAIModal(false)
+          setEditingNodeId(undefined)
+      }}></GroqAIModal>
 
       <ReactFlow
         colorMode="dark"

@@ -65,7 +65,7 @@ export const workflowApi = {
   },
 
   update:async(userId:string,data:UpdateWorkflowRequest,id:string)=>{
-    const response=await api.put<WorkflowResponse>(`${BASE_PATH}/${id}/${userId}`)
+    const response=await api.put<WorkflowResponse>(`${BASE_PATH}/${id}/${userId}`,data)
     return response.data
   },
 
